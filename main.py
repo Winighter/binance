@@ -86,7 +86,7 @@ class Binance:
 
     def get_balance(self):
 
-        position = 70 # 10 ~ 20 전체자산 기준 투자할 금액 비율 (%)
+        position = 80 # 10 ~ 20 전체자산 기준 투자할 금액 비율 (%)
         risk = 0.25 # [0.25-1] [0.5-1.5] 투자금액 기준 손절할 금액 비율 (%)
 
         balance = self.client.futures_account_balance()
