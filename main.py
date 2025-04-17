@@ -2,7 +2,6 @@ import time
 from config import *
 from binance.client import Client
 from binance import ThreadedWebsocketManager
-import matplotlib.pyplot as plt 
 
 
 class Binance:
@@ -184,16 +183,6 @@ class Binance:
         self.low_list.reverse()
         self.high_list.reverse()
         self.close_list.reverse()
-
-        times = []
-        rsi = Indicator.rsi(self.close_list,9,None)
-        for i in range(len(rsi)):
-            times.append(i)
-
-        plt.plot(times, rsi)
-        
-        # plt.show()
- 
 
     def scalping_tf(self,maBase,_ema_src, maRef,_array=0):
         change_ma = _ema_src[_array] - _ema_src[_array+1]
