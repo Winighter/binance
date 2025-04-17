@@ -1,6 +1,6 @@
 import datetime, requests
 
-url = 'your-web-hook-url'
+url = 'https://discord.com/api/webhooks/1349690403829448725/7snHkoLZftpXa58O1KVS1NzhUoN9hBm2QUIwxAMcTFIHkEESIO8uHS-yFk3QPuqNcpPq'
 
 class Message():
 
