@@ -6,89 +6,113 @@ from binance import ThreadedWebsocketManager
 
 class Binance:
 
-    def __init__(self, _access, _secret):
+    def __init__(self, _access, _secret, _test:bool=False):
 
         API_KEY = _access
         API_SECRET = _secret
 
-        self.client = Client(API_KEY, API_SECRET)
+        if _test:
+            API_KEY = 'de67f50b776dc8af9f88c9035e46725d0b63a864ea3cad411618430af7ac83e2'
+            API_SECRET = '5d4a6177bda0eb57929c68f9fabbcf640c9335acd5566cd28805496e23eeb779'
+
+        self.client = Client(API_KEY, API_SECRET,testnet=_test)
 
         self.symbol = "XRPUSDT"
         self.TIME = self.client.KLINE_INTERVAL_5MINUTE # 1, 3, 5, 15, 30
 
         self.ORDER_LOCK = False
-
+        self.LONG_LOCK = False
+        self.SHORT_LOCK = False
+        self.n2_long_price = 0.
+        self.n2_short_price = 0.
         self.balance_dict = {}
         self.order_buy_dict = {}
         self.order_sell_dict = {}
 
+        self.long_dict = {}
+        self.short_dict = {}
+
         # RUN
-        self.set_dafault_settings()
-        self.get_position()
-        self.get_balance()
-        print(f"\nStart Binance... {self.risk}\n")
+        print(f"\nStart Binance...\n")
+        self.set_the_default_settings()
+        # self.get_exchange_info()
         self.get_candle_chart()
 
         self.start_websocket(self.symbol)
 
-    def set_dafault_settings(self):
+    def get_exchange_info(self):
 
-        leverage = 2
-        self.leverage = leverage
-        self.client.futures_change_leverage(symbol=self.symbol, leverage=leverage)
+        info = self.client.futures_exchange_info()
 
-    def get_position(self):
+        timezone = info['timezone']
+        serverTime = info['serverTime']
+        futuresType = info['futuresType']
+        rateLimits = info['rateLimits']
+        exchangeFilters = info['exchangeFilters']
+        assets = info['assets']
+        symbols = info['symbols']
 
-        # unRealizedProfit = (markPrice -entryPrice) * amount
-        position = self.client.futures_position_information()
-        position = list(position)
+        for i in symbols:
+            if i['symbol'] == self.symbol:
+                filters = (i['filters'])
 
-        if position == []:
-            if self.balance_dict != {}:
-                self.balance_dict = {}
-        else:
-            for i in position:
+        for i in filters:
 
-                symbol = str(i['symbol'])
-                notional = float(i['notional'])
+            filterType = i['filterType']
+            if filterType == 'PERCENT_PRICE':
+                multiplierDown = i['multiplierDown']
+                multiplierUp = i['multiplierUp']
 
-                if notional != 0:
-                    notional = round(float(i['notional']),4)
-                    entryPrice = float(i['entryPrice'])
-                    positionAmt = abs(float(i['positionAmt']))
-                    unRealizedProfit = float(round(float(i['unRealizedProfit']),3))
-                    posit = "LONG"
-                    if notional < 0:
-                        posit = "SHORT"
-                        notional = notional*-1
+    def set_the_default_settings(self):
 
-                    self.balance_dict.update({symbol:{posit:{'balance':notional, 'positionAmt':positionAmt, 'unRealizedProfit':unRealizedProfit,'entryPrice':entryPrice}}})
+        self.change_leverage()
+        self.change_hedge_mode()
+        self.get_balance()
+        self.get_positions()
 
-                elif self.balance_dict != {}:
+    def change_leverage(self, _leverage:int = 1):
 
-                    if symbol in self.balance_dict.keys():
+        self.leverage = _leverage
+        self.client.futures_change_leverage(symbol=self.symbol, leverage=_leverage)
 
-                        if notional == 0:
-                            self.balance_dict.pop(symbol)
+    def change_hedge_mode(self):
+        
+        mode = self.client.futures_get_position_mode()
+        if mode['dualSidePosition'] == False:
+            self.client.futures_change_position_mode(dualSidePosition="true")
 
     def get_balance(self):
 
-        position = 50 # 10 ~ 20 전체자산 기준 투자할 금액 비율 (%)
-        risk = 0.5 # [0.25-1] [0.5-1.5] 투자금액 기준 손절할 금액 비율 (%)
+        position = 20 # 10 ~ 20 전체자산 기준 투자할 금액 비율 (%)
+        balances = self.client.futures_account_balance()
 
-        balance = self.client.futures_account_balance()
+        for i in balances:
 
-        for i in balance:
+            asset = i['asset']
+            balance = float(i['balance'])
+            availableBalance = float(i['availableBalance'])
 
-            if float(i['balance']) > 0:
+            if balance > 0:
+                self.deposit = balance*(position/100)
+                self.balance_dict.update({asset:{'balance':balance,'availableBalance':availableBalance}})
 
-                balance = float(i['balance'])
-                balance = round(balance)
-                deposit = balance*(position/100)*self.leverage
-                self.deposit = round(deposit, 1) # USDT
+    def get_positions(self):
 
-                risk = balance*(risk/100)*-1*self.leverage
-                self.risk = round(risk, 2) # USDT
+        # unRealizedProfit = (markPrice -entryPrice) * positionAmt
+        positions = self.client.futures_position_information()
+
+        for i in positions:
+            
+            symbol = i['symbol']
+            positionSide = i['positionSide']
+            entryPrice = float(i['entryPrice'])
+            positionAmt = float(i['positionAmt'])
+
+            if positionSide == "LONG":
+                self.long_dict.update({symbol:{'positionAmt':positionAmt,'entryPrice':entryPrice}})
+
+            if positionSide == "SHORT":
+                self.short_dict.update({symbol:{'positionAmt':positionAmt,'entryPrice':entryPrice}})
 
     def get_book_order_price(self, _bid_ask):
 
@@ -105,7 +129,7 @@ class Binance:
                 result = float(result)
                 return result
 
-    def orderFO(self, _symbol, _side:str, _amount:float, _price = 0):
+    def orderFO(self, _symbol:str, _side:str, _positionSide:str, _amount:float, _price = 0):
 
         time.sleep(0.2)
 
@@ -117,9 +141,8 @@ class Binance:
                     symbol = _symbol,
                     side = _side, # BUY or SELL
                     type = 'MARKET', # LIMIT, MARKET, STOP, TAKE_PROFIT, STOP_MARKET, TAKE_PROFIT_MARKET
-                    positionSide= "BOTH",
+                    positionSide= _positionSide,
                     quantity = _amount,
-                    # reduceOnly = 'true',
                     )
 
             else:
@@ -127,11 +150,10 @@ class Binance:
                     symbol = _symbol, 
                     side = _side, # BUY or SELL
                     type = 'LIMIT', # LIMIT, MARKET, STOP, TAKE_PROFIT, STOP_MARKET, TAKE_PROFIT_MARKET
-                    positionSide= "BOTH",
+                    positionSide= _positionSide,
                     quantity = _amount,
                     price = _price,
                     timeinforce = "GTC"
-                    # reduceOnly = 'true',
                     )
 
             if order != None:
@@ -143,32 +165,34 @@ class Binance:
 
     def get_candle_chart(self):
 
+        self.open_list = []
+        self.high_list = []
+        self.low_list = []
         self.close_list = []
+
         count = 0
         candles = self.client.futures_klines(symbol=self.symbol, interval=self.TIME)
 
         for candle in candles:
 
+            open = float(candle[1])
+            high = float(candle[2])
+            low = float(candle[3])
             close = float(candle[4])
+
+            self.open_list.append(open)
+            self.high_list.append(high)
+            self.low_list.append(low)
             self.close_list.append(close)
             count += 1
 
             if count == len(candles) - 1:
                 break
 
+        self.open_list.reverse()
+        self.high_list.reverse()
+        self.low_list.reverse()
         self.close_list.reverse()
-
-    def scalping_tf(self, _ema_src, _short, _long, _array=0):
-
-        change_ma = _ema_src[_array] - _ema_src[_array+1]
-        change_ma = float(format(change_ma, '.4f'))
-
-        if change_ma >= 0 and _short>_long:
-            return 1
-        elif change_ma <= 0 and _short<_long:
-            return -1
-        else:
-            return 0
 
     def handle_socket_message(self, msg):
 
@@ -178,123 +202,102 @@ class Binance:
 
                 k = msg['data']['k']
                 closed = k['x']
-                close = float(k['c'])
-                
-                if closed == True:
 
+                open = float(k['o'])
+                high = float(k['h'])
+                low = float(k['l'])
+                close = float(k['c'])
+
+                if closed == True:
+                    self.open_list.insert(0, open)
+                    self.high_list.insert(0, high)
+                    self.low_list.insert(0, low)
                     self.close_list.insert(0, close)
 
-                    ema12 = Indicator.ema(self.close_list, 12, None)
-                    ema36 = Indicator.ema(self.close_list, 36, None)
+                    _s1_long = Strategies.system1(self.high_list, self.low_list)
+                    _s1_short = Strategies.system1(self.high_list, self.low_list,_high_len=15,_low_len=30)
 
-                    sEma12 = self.scalping_tf(ema12, ema12[0], ema36[0])
-                    sEma36 = self.scalping_tf(ema36, ema12[0], ema36[0])
+                    atr = Indicators.atr(self.high_list,self.low_list,self.close_list,30)
+                    atr = round(atr, 4)*2
 
-                    sEma12_1 = self.scalping_tf(ema12, ema12[1], ema36[1], 1)
-                    sEma36_1 = self.scalping_tf(ema36, ema12[1], ema36[1], 1)
+                    long_condition = _s1_long[0]
+                    long_end = _s1_long[1]
 
-                    long_condition = (ema12[0] > ema36[0]) and ((sEma12 + sEma36) == 2) and (ema12[1] <= ema36[1]) and ((sEma12_1 + sEma36_1) != 2)
-                    short_condition = (ema12[0] < ema36[0]) and ((sEma12 + sEma36) == -2) and (ema12[1] >= ema36[1]) and ((sEma12_1 + sEma36_1) != -2)
+                    short_condition = _s1_short[1]
+                    short_end = _s1_short[0]
 
-                    short_end = long_condition
-                    long_end = short_condition
+                    if long_end == True and self.LONG_LOCK:
+                        self.LONG_LOCK = False
 
-                    if self.balance_dict != {}:
+                    if short_end == True and self.SHORT_LOCK:
+                        self.SHORT_LOCK = False
 
-                        # LONG 정리
-                        if "LONG" in self.balance_dict[self.symbol].keys():
+                    # Open Positions
+                    if self.symbol not in self.long_dict.keys() and self.LONG_LOCK == False and long_condition:
 
-                            if self.symbol not in self.order_sell_dict.keys() and long_end == True:
+                        Message(f"[OPEN-LONG] {self.symbol}")
+                        bid_price = self.get_book_order_price("bid")
+                        amount = round(self.deposit/bid_price, 1)
+                        self.n2_long_price = round(self.close_list[0] - atr, 5)
+                        self.orderFO(self.symbol, "BUY", "LONG", amount)
 
-                                Message("[CDTN] Close Long")
-                                positionAmt = self.balance_dict[self.symbol]["LONG"]['positionAmt']
-                                self.orderFO(self.symbol, "SELL", positionAmt)
+                    if self.symbol not in self.short_dict.keys() and self.SHORT_LOCK == False and short_condition:
 
-                                if short_condition == True:
-                                    Message("[CDTN] ... & Entry Short")
-                                    time.sleep(1)
-                                    self.get_balance()
-                                    ask_price = self.get_book_order_price("ask")
-                                    amount = round(self.deposit/ask_price, 1)
-                                    self.orderFO(self.symbol, "SELL", amount)
+                        Message(f"[OPEN-SHORT] {self.symbol}")
+                        ask_price = self.get_book_order_price("ask")
+                        amount = round(self.deposit/ask_price, 1)
+                        self.n2_short_price = round(self.close_list[0] + atr, 5)
+                        self.orderFO(self.symbol, "SELL", "SHORT", amount)
 
-                        # SHORT 정리
-                        else:
-                            if self.symbol not in self.order_buy_dict.keys() and short_end == True:
+                    # [TP] Close Positions 
+                    if self.symbol in self.long_dict.keys() and long_end:
 
-                                Message("[CDTN] Close Short")
-                                positionAmt = self.balance_dict[self.symbol]["SHORT"]['positionAmt']
-                                self.orderFO(self.symbol, "BUY", positionAmt)
+                        entryPrice = self.long_dict[self.symbol]['entryPrice']
+                        long_pnl = ((close-entryPrice)/entryPrice)*100
+                        Message(f"[CLOSE-LONG] {self.symbol} pnl:{long_pnl}")
+                        if long_pnl > 0:
+                            self.LONG_LOCK = True
+                        self.n2_long_price = 0.
+                        positionAmt = self.long_dict[self.symbol]['positionAmt']
+                        self.orderFO(self.symbol, "SELL", "LONG", positionAmt)
 
-                                if long_condition == True:
-                                    Message("[CDTN] ... & Entry Long")
-                                    time.sleep(1)
-                                    self.get_balance()
-                                    bid_price = self.get_book_order_price("bid")
-                                    amount = round(self.deposit/bid_price,1)
-                                    self.orderFO(self.symbol, "BUY", amount)
-                    else:
-                        # LONG 진입
-                        if long_condition == True:
-                            Message("Entry Long")
-                            bid_price = self.get_book_order_price("bid")
-                            amount = round(self.deposit/bid_price, 1)
-                            self.orderFO(self.symbol, "BUY", amount)
+                    if self.symbol in self.short_dict.keys() and short_end:
 
-                        # SHORT 진입
-                        if short_condition == True:
-                            Message("Entry Short")
-                            ask_price = self.get_book_order_price("ask")
-                            amount = round(self.deposit/ask_price, 1)
-                            self.orderFO(self.symbol, "SELL", amount)
+                        entryPrice = self.short_dict[self.symbol]['entryPrice']
+                        short_pnl = ((close-entryPrice)/entryPrice)*-100
+                        Message(f"[CLOSE-SHORT] {self.symbol} pnl:{short_pnl}")
+                        if short_pnl > 0:
+                            self.SHORT_LOCK = True
+                        self.n2_short_price = 0.
+                        positionAmt = self.short_dict[self.symbol]['positionAmt']
+                        self.orderFO(self.symbol, "BUY", "SHORT", positionAmt)                        
 
                 #####################################
                 self.close_list.insert(0, close)
-                
+
+                # [SL 2N] Close Positions
+                if self.symbol in self.long_dict.keys():
+                    if 0 < self.n2_long_price and self.n2_long_price < close:
+
+                        self.n2_long_price = 0.
+                        entryPrice = self.long_dict[self.symbol]['entryPrice']
+                        positionAmt = self.long_dict[self.symbol]['positionAmt']
+                        long_pnl = ((close-entryPrice)/entryPrice)*100
+                        Message(f"[CLOSE-LONG] {self.symbol} PNL: {long_pnl}")
+                        self.orderFO(self.symbol, "SELL", "LONG", positionAmt)
+
+                if self.symbol in self.short_dict.keys():
+                    if 0 < self.n2_short_price and self.n2_short_price < close:
+
+                        self.n2_short_price = 0.
+                        entryPrice = self.short_dict[self.symbol]['entryPrice']
+                        positionAmt = self.short_dict[self.symbol]['positionAmt']
+                        short_pnl = ((close-entryPrice)/entryPrice)*-100
+                        Message(f"[CLOSE-SHORT] {self.symbol} PNL: {short_pnl}")
+                        self.orderFO(self.symbol, "BUY", "SHORT", positionAmt)
+
                 del self.close_list[0]
                 #####################################
-
-                ### 정리할 경우 ###
-                if self.balance_dict != {}:
-
-                    # LONG 정리
-                    if "LONG" in self.balance_dict[self.symbol].keys():
-                        positionAmt = self.balance_dict[self.symbol]["LONG"]['positionAmt']
-                        entryPrice = self.balance_dict[self.symbol]["LONG"]['entryPrice']
-                        self.balance_dict[self.symbol]["LONG"]['balance'] = round(float(positionAmt*close),4)
-                        # print(entryPrice* positionAmt)
-                        unRealizedProfit = (close - entryPrice) * positionAmt
-                        self.balance_dict[self.symbol]["LONG"]['unRealizedProfit'] = round(float(unRealizedProfit),3)
-
-                        if self.symbol not in self.order_sell_dict.keys():
-
-                            urp = self.balance_dict[self.symbol]["LONG"]['unRealizedProfit']
-                            urp = round(urp, 3)
-
-                            # LONG 전부 손절 (조건)
-                            if urp <= self.risk:
-                                Message("[SL] Close Long")
-                                self.orderFO(self.symbol, "SELL", positionAmt)
-
-                    # SHORT 정리
-                    else:
-                        positionAmt = self.balance_dict[self.symbol]["SHORT"]['positionAmt']
-                        entryPrice = self.balance_dict[self.symbol]["SHORT"]['entryPrice']
-                        self.balance_dict[self.symbol]["SHORT"]['balance'] = round(float(positionAmt*close),4) 
-                        # print(entryPrice* positionAmt)
-                        unRealizedProfit = (close - entryPrice) * positionAmt
-                        self.balance_dict[self.symbol]["SHORT"]['unRealizedProfit'] = round(float(unRealizedProfit*-1),3)
-
-                        if self.symbol not in self.order_buy_dict.keys():
-
-                            urp = self.balance_dict[self.symbol]["SHORT"]['unRealizedProfit']
-                            urp = round(urp, 3)
-
-                            # SHORT 전부 손절 (조건)
-                            if urp <= self.risk:
-                                Message("[SL] Close Short")
-                                self.orderFO(self.symbol, "BUY", positionAmt)
-
         else:
             e = msg['e']
 
@@ -310,7 +313,7 @@ class Binance:
                     if side == self.order_sell_dict[symbol]:
                         self.order_sell_dict.pop(symbol)
 
-                self.get_position()
+                self.get_positions()
                 self.get_balance()
 
             elif e == "ACCOUNT_UPDATE":
