@@ -216,9 +216,9 @@ class Binance:
                     self.close_list.insert(0, close)
 
                     _s1_long = Strategies.system1(self.high_list, self.low_list)
-                    _s1_short = Strategies.system1(self.high_list, self.low_list,_high_len=15,_low_len=30)
+                    _s1_short = Strategies.system1(self.high_list, self.low_list,_high_len=14,_low_len=28)
 
-                    atr = Indicators.atr(self.high_list,self.low_list,self.close_list,30)
+                    atr = Indicators.atr(self.high_list,self.low_list,self.close_list,28)
                     atr = round(atr, 4)*2
 
                     long_condition = _s1_long[0]
