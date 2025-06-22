@@ -19,7 +19,7 @@ class Binance:
         self.symbol = "XRPUSDT"
         self.TIME = self.client.KLINE_INTERVAL_15MINUTE # 1, 3, 5, 15, 30
 
-        self.ORDER_LOCK = True
+        self.ORDER_LOCK = False
         self.LONG_LOCK = True
         self.SHORT_LOCK = True
 
