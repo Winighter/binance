@@ -19,7 +19,7 @@ class Binance:
         self.symbol = "XRPUSDT"
         self.TIME = self.client.KLINE_INTERVAL_15MINUTE # 1, 3, 5, 15, 30
 
-        self.ORDER_LOCK = False
+        self.ORDER_LOCK = True
         self.LONG_LOCK = True
         self.SHORT_LOCK = True
 
@@ -37,7 +37,6 @@ class Binance:
         self.set_the_default_settings()
         # self.get_exchange_info()
         self.get_candle_chart()
-
         self.start_websocket(self.symbol)
 
     def get_exchange_info(self):
@@ -147,16 +146,6 @@ class Binance:
                         positionSide= _positionSide,
                         quantity = _amount,
                         )
-                else:
-                    order = self.client.futures_create_order(
-                        symbol = _symbol, 
-                        side = _side, # BUY or SELL
-                        type = 'LIMIT', # LIMIT, MARKET, STOP, TAKE_PROFIT, STOP_MARKET, TAKE_PROFIT_MARKET
-                        positionSide= _positionSide,
-                        quantity = _amount,
-                        price = _price,
-                        timeinforce = "GTC"
-                        )
 
             if order != None:
                 if _positionSide == "LONG":
@@ -255,20 +244,20 @@ class Binance:
                     # [TP] Close Positions 
                     if self.symbol in self.long_dict.keys() and long_end:
 
-                        entryPrice = self.long_dict[self.symbol]['entryPrice']
-                        long_pnl = round(((close-entryPrice)/entryPrice)*100, 4)
-                        quantity = float(self.long_dict[self.symbol]['positionAmt'])
-                        Message(f"[TP CLOSE-LONG] {self.symbol} pnl:{long_pnl} sl_price:{self.n2_long_price}")
                         self.n2_long_price = 0.
+                        entryPrice = self.long_dict[self.symbol]['entryPrice']
+                        pnl = round(((close-entryPrice)/entryPrice)*100, 4)
+                        quantity = float(self.long_dict[self.symbol]['positionAmt'])
+                        Message(f"[TP CLOSE-LONG] {self.symbol} pnl:{pnl}")
                         self.orderFO(self.symbol, "SELL", "LONG", quantity)
 
                     if self.symbol in self.short_dict.keys() and short_end:
 
-                        entryPrice = self.short_dict[self.symbol]['entryPrice']
-                        short_pnl = round(((close-entryPrice)/entryPrice)*-100, 4)
-                        quantity = float(self.short_dict[self.symbol]['positionAmt'])
-                        Message(f"[TP CLOSE-SHORT] {self.symbol} pnl:{short_pnl} sl_price:{self.n2_short_price}")
                         self.n2_short_price = 0.
+                        entryPrice = self.short_dict[self.symbol]['entryPrice']
+                        pnl = round(((close-entryPrice)/entryPrice)*-100, 4)
+                        quantity = float(self.short_dict[self.symbol]['positionAmt'])
+                        Message(f"[TP CLOSE-SHORT] {self.symbol} pnl:{pnl}")
                         self.orderFO(self.symbol, "BUY", "SHORT", quantity)                        
 
                 self.close_list.insert(0, close)
@@ -278,44 +267,50 @@ class Binance:
 
                     if 0 < close and close < self.n2_long_price:
 
+                        self.LONG_LOCK = True
+                        self.n2_long_price = 0.
                         entryPrice = self.long_dict[self.symbol]['entryPrice']
                         quantity = self.long_dict[self.symbol]['positionAmt']
-                        long_pnl = ((close-entryPrice)/entryPrice)*100
-                        Message(f"[SL CLOSE-LONG] {self.symbol} PNL: {long_pnl} sl_Price:{self.n2_long_price}")
-                        self.n2_long_price = 0.
-                        self.LONG_LOCK = True
+                        pnl = ((close-entryPrice)/entryPrice)*100
+                        Message(f"[SL CLOSE-LONG] {self.symbol} PNL: {pnl}")
                         self.orderFO(self.symbol, "SELL", "LONG", quantity)
 
                 if self.symbol in self.short_dict.keys():
 
                     if 0 < self.n2_short_price and self.n2_short_price < close:
 
+                        self.SHORT_LOCK = True
+                        self.n2_short_price = 0.
                         entryPrice = self.short_dict[self.symbol]['entryPrice']
                         quantity = self.short_dict[self.symbol]['positionAmt']
-                        short_pnl = ((close-entryPrice)/entryPrice)*-100
-                        Message(f"[SL CLOSE-SHORT] {self.symbol} PNL: {short_pnl} sl_Price:{self.n2_short_price}")
-                        self.n2_short_price = 0.
-                        self.SHORT_LOCK = True
+                        pnl = ((close-entryPrice)/entryPrice)*-100
+                        Message(f"[SL CLOSE-SHORT] {self.symbol} PNL: {pnl}")
                         self.orderFO(self.symbol, "BUY", "SHORT", quantity)
 
                 del self.close_list[0]
         else:
             e = msg['e']
 
-            if e == 'ORDER_TRADE_UPDATE':
+            if e == 'error':
+                Message(f"WebSocket Error: {msg['m']}")
+                print(f"WebSocket Error: {msg['m']}")
 
-                o = msg['o']
-                i = o['i']
-                if o['X'] == 'FILLED':
+            else:
+                if e == 'ORDER_TRADE_UPDATE':
 
-                    if i == self.order_long_Id:
-                        self.order_long_Id = 0
+                    o = msg['o']
+                    i = o['i']
+                    if o['X'] == 'FILLED':
 
-                    if i == self.order_short_Id:
-                        self.order_short_Id = 0
+                        if i == self.order_long_Id:
+                            self.order_long_Id = 0
 
-            if e == 'ACCOUNT_UPDATE':
-                self.get_positions()
+                        if i == self.order_short_Id:
+                            self.order_short_Id = 0
+
+                if e == 'ACCOUNT_UPDATE':
+                    self.get_balance()
+                    self.get_positions()
 
     def start_websocket(self, _symbol):
         twm = ThreadedWebsocketManager(api_key, api_secret)
@@ -327,7 +322,14 @@ class Binance:
         twm.start_futures_user_socket(self.handle_socket_message)
         streams = [f'{ls}@kline_{ki}']
         twm.start_futures_multiplex_socket(self.handle_socket_message, streams)
-        twm.join()
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            Message("Stopping websocket manager...")
+            print("Stopping websocket manager...")
+            twm.stop()
+            twm.join()
 
 if __name__ == "__main__":
 
