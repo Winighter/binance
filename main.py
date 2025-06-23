@@ -5,21 +5,17 @@ from binance import ThreadedWebsocketManager
 
 class Binance:
 
-    def __init__(self, _access, _secret, _test:bool=False):
+    def __init__(self, _access, _secret):
 
         API_KEY = _access
         API_SECRET = _secret
 
-        if _test:
-            API_KEY = 'de67f50b776dc8af9f88c9035e46725d0b63a864ea3cad411618430af7ac83e2'
-            API_SECRET = '5d4a6177bda0eb57929c68f9fabbcf640c9335acd5566cd28805496e23eeb779'
-
-        self.client = Client(API_KEY, API_SECRET, testnet=_test)
+        self.client = Client(API_KEY, API_SECRET)
 
         self.symbol = "XRPUSDT"
         self.TIME = self.client.KLINE_INTERVAL_15MINUTE # 1, 3, 5, 15, 30
 
-        self.ORDER_LOCK = True
+        self.ORDER_LOCK = False
         self.LONG_LOCK = True
         self.SHORT_LOCK = True
 
@@ -205,9 +201,9 @@ class Binance:
                     self.close_list.insert(0, close)
 
                     _s1_long = Strategies.system1(self.high_list, self.low_list)
-                    _s1_short = Strategies.system1(self.high_list, self.low_list,_high_len=14,_low_len=28)
+                    _s1_short = Strategies.system1(self.high_list, self.low_list, _high_len=14, _low_len=28)
 
-                    atr = Indicators.atr(self.high_list,self.low_list,self.close_list,28)
+                    atr = Indicators.atr(self.high_list,self.low_list,self.close_list, 28)
                     atr = round(atr, 4)*2
 
                     long_condition = _s1_long[0]
@@ -217,15 +213,15 @@ class Binance:
                     short_end = _s1_short[0]
 
                     if self.symbol not in self.long_dict and self.LONG_LOCK:
-                        if long_end:
+                        if long_condition != long_end and long_end:
                             self.LONG_LOCK = False
 
                     if self.symbol not in self.short_dict and self.SHORT_LOCK:
-                        if short_end:
+                        if short_condition != short_end and short_end:
                             self.SHORT_LOCK = False
 
                     # Open Positions
-                    if self.symbol not in self.long_dict.keys() and self.LONG_LOCK == False and long_condition:
+                    if self.symbol not in self.long_dict.keys() and self.LONG_LOCK == False and long_condition != long_end and long_condition:
 
                         Message(f"[OPEN-LONG] {self.symbol}")
                         bid_price = self.get_book_order_price("bid")
@@ -233,7 +229,7 @@ class Binance:
                         self.n2_long_price = round(self.close_list[0] - atr, 5)
                         self.orderFO(self.symbol, "BUY", "LONG", amount)
 
-                    if self.symbol not in self.short_dict.keys() and self.SHORT_LOCK == False and short_condition:
+                    if self.symbol not in self.short_dict.keys() and self.SHORT_LOCK == False and short_condition != short_end and short_condition:
 
                         Message(f"[OPEN-SHORT] {self.symbol}")
                         ask_price = self.get_book_order_price("ask")
@@ -242,7 +238,7 @@ class Binance:
                         self.orderFO(self.symbol, "SELL", "SHORT", amount)
 
                     # [TP] Close Positions 
-                    if self.symbol in self.long_dict.keys() and long_end:
+                    if self.symbol in self.long_dict.keys() and long_condition != long_end and long_end:
 
                         self.n2_long_price = 0.
                         entryPrice = self.long_dict[self.symbol]['entryPrice']
@@ -251,7 +247,7 @@ class Binance:
                         Message(f"[TP CLOSE-LONG] {self.symbol} pnl:{pnl}")
                         self.orderFO(self.symbol, "SELL", "LONG", quantity)
 
-                    if self.symbol in self.short_dict.keys() and short_end:
+                    if self.symbol in self.short_dict.keys() and short_condition != short_end and short_end:
 
                         self.n2_short_price = 0.
                         entryPrice = self.short_dict[self.symbol]['entryPrice']
