@@ -13,11 +13,11 @@ class Binance:
         self.client = Client(API_KEY, API_SECRET)
 
         self.symbol = "XRPUSDT"
-        self.TIME = self.client.KLINE_INTERVAL_15MINUTE # 1, 3, 5, 15, 30
+        self.TIME = self.client.KLINE_INTERVAL_1MINUTE # 1, 3, 5, 15, 30
 
         self.ORDER_LOCK = False
-        self.LONG_LOCK = True
-        self.SHORT_LOCK = True
+        self.LONG_LOCK = False
+        self.SHORT_LOCK = False
 
         self.n2_long_price = 0.
         self.n2_short_price = 0.
@@ -142,7 +142,6 @@ class Binance:
                         positionSide= _positionSide,
                         quantity = _amount,
                         )
-
             if order != None:
                 if _positionSide == "LONG":
                     self.order_long_Id = order['orderId']
@@ -180,6 +179,8 @@ class Binance:
         self.low_list.reverse()
         self.close_list.reverse()
 
+        _s1_long = Strategies.system1(self.high_list, self.low_list)
+
     def handle_socket_message(self, msg):
 
         if 'stream' in msg:
@@ -206,6 +207,10 @@ class Binance:
                     atr = Indicators.atr(self.high_list,self.low_list,self.close_list, 28)
                     atr = round(atr, 4)*2
 
+                    self.n2_long_price = round(self.close_list[0] - atr, 5)
+                    self.n2_short_price = round(self.close_list[0] + atr, 5)
+
+
                     long_condition = _s1_long[0]
                     long_end = _s1_long[1]
 
@@ -223,18 +228,18 @@ class Binance:
                     # Open Positions
                     if self.symbol not in self.long_dict.keys() and self.LONG_LOCK == False and long_condition != long_end and long_condition:
 
-                        Message(f"[OPEN-LONG] {self.symbol}")
                         bid_price = self.get_book_order_price("bid")
                         amount = round(self.deposit/bid_price, 1)
                         self.n2_long_price = round(self.close_list[0] - atr, 5)
+                        Message(f"[OPEN-LONG] {self.symbol} slp: {self.n2_long_price}")
                         self.orderFO(self.symbol, "BUY", "LONG", amount)
 
                     if self.symbol not in self.short_dict.keys() and self.SHORT_LOCK == False and short_condition != short_end and short_condition:
 
-                        Message(f"[OPEN-SHORT] {self.symbol}")
                         ask_price = self.get_book_order_price("ask")
                         amount = round(self.deposit/ask_price, 1)
                         self.n2_short_price = round(self.close_list[0] + atr, 5)
+                        Message(f"[OPEN-SHORT] {self.symbol} slp: {self.n2_short_price}")
                         self.orderFO(self.symbol, "SELL", "SHORT", amount)
 
                     # [TP] Close Positions 
@@ -261,7 +266,7 @@ class Binance:
                 # [SL 2N] Close Positions
                 if self.symbol in self.long_dict.keys():
 
-                    if 0 < close and close < self.n2_long_price:
+                    if 0 != self.n2_long_price and close < self.n2_long_price:
 
                         self.LONG_LOCK = True
                         self.n2_long_price = 0.
@@ -273,7 +278,7 @@ class Binance:
 
                 if self.symbol in self.short_dict.keys():
 
-                    if 0 < self.n2_short_price and self.n2_short_price < close:
+                    if 0 != self.n2_short_price and self.n2_short_price < close:
 
                         self.SHORT_LOCK = True
                         self.n2_short_price = 0.
