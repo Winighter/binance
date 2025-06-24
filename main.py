@@ -13,11 +13,11 @@ class Binance:
         self.client = Client(API_KEY, API_SECRET)
 
         self.symbol = "XRPUSDT"
-        self.TIME = self.client.KLINE_INTERVAL_1MINUTE # 1, 3, 5, 15, 30
+        self.TIME = self.client.KLINE_INTERVAL_15MINUTE
 
         self.ORDER_LOCK = False
-        self.LONG_LOCK = False
-        self.SHORT_LOCK = False
+        self.LONG_LOCK = True
+        self.SHORT_LOCK = True
 
         self.n2_long_price = 0.
         self.n2_short_price = 0.
@@ -31,32 +31,8 @@ class Binance:
         # RUN
         print(f"\nStart Binance...\n")
         self.set_the_default_settings()
-        # self.get_exchange_info()
         self.get_candle_chart()
         self.start_websocket(self.symbol)
-
-    def get_exchange_info(self):
-
-        info = self.client.futures_exchange_info()
-
-        timezone = info['timezone']
-        serverTime = info['serverTime']
-        futuresType = info['futuresType']
-        rateLimits = info['rateLimits']
-        exchangeFilters = info['exchangeFilters']
-        assets = info['assets']
-        symbols = info['symbols']
-
-        for i in symbols:
-            if i['symbol'] == self.symbol:
-                filters = (i['filters'])
-
-        for i in filters:
-
-            filterType = i['filterType']
-            if filterType == 'PERCENT_PRICE':
-                multiplierDown = i['multiplierDown']
-                multiplierUp = i['multiplierUp']
 
     def set_the_default_settings(self):
 
@@ -179,8 +155,6 @@ class Binance:
         self.low_list.reverse()
         self.close_list.reverse()
 
-        _s1_long = Strategies.system1(self.high_list, self.low_list)
-
     def handle_socket_message(self, msg):
 
         if 'stream' in msg:
@@ -189,7 +163,6 @@ class Binance:
 
                 k = msg['data']['k']
                 closed = k['x']
-
                 open = float(k['o'])
                 high = float(k['h'])
                 low = float(k['l'])
@@ -210,20 +183,17 @@ class Binance:
                     self.n2_long_price = round(self.close_list[0] - atr, 5)
                     self.n2_short_price = round(self.close_list[0] + atr, 5)
 
-
                     long_condition = _s1_long[0]
                     long_end = _s1_long[1]
 
                     short_condition = _s1_short[1]
                     short_end = _s1_short[0]
 
-                    if self.symbol not in self.long_dict and self.LONG_LOCK:
-                        if long_condition != long_end and long_end:
-                            self.LONG_LOCK = False
+                    if long_condition != long_end and self.LONG_LOCK == True and long_end:
+                        self.LONG_LOCK = False
 
-                    if self.symbol not in self.short_dict and self.SHORT_LOCK:
-                        if short_condition != short_end and short_end:
-                            self.SHORT_LOCK = False
+                    if short_condition != short_end and self.SHORT_LOCK == True and short_end:
+                        self.SHORT_LOCK = False
 
                     # Open Positions
                     if self.symbol not in self.long_dict.keys() and self.LONG_LOCK == False and long_condition != long_end and long_condition:
@@ -295,7 +265,6 @@ class Binance:
             if e == 'error':
                 Message(f"WebSocket Error: {msg['m']}")
                 print(f"WebSocket Error: {msg['m']}")
-
             else:
                 if e == 'ORDER_TRADE_UPDATE':
 
