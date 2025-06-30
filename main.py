@@ -16,8 +16,8 @@ class Binance:
         self.TIME = self.client.KLINE_INTERVAL_15MINUTE
 
         self.ORDER_LOCK = False
-        self.LONG_LOCK = False
-        self.SHORT_LOCK = False
+        self.LONG_LOCK = True
+        self.SHORT_LOCK = True
 
         self.LONG2 = False
         self.SHORT2 = False
