@@ -16,8 +16,14 @@ class Binance:
         self.TIME = self.client.KLINE_INTERVAL_15MINUTE
 
         self.ORDER_LOCK = False
-        self.LONG_LOCK = True
-        self.SHORT_LOCK = True
+        self.LONG_LOCK = False
+        self.SHORT_LOCK = False
+
+        self.LONG2 = False
+        self.SHORT2 = False
+
+        self.SYSTEM2_LONG_LOCK = 0
+        self.SYSTEM2_SHORT_LOCK = 0
 
         self.n2_long_price = 0
         self.n2_short_price = 0
@@ -173,6 +179,63 @@ class Binance:
                     self.low_list.insert(0, low)
                     self.close_list.insert(0, close)
 
+                    # ATR
+                    atr = Indicators.atr(self.high_list,self.low_list,self.close_list)
+                    atr = round(atr, 4)*2
+
+                    # SYSTEM 2
+                    if self.SYSTEM2_LONG_LOCK != 0:
+                        _s1_long2 = Strategies.system1(self.high_list, self.low_list, _high_len=77, _low_len=28)
+
+                        long_condition2 = _s1_long2[0]
+                        long_end2 = _s1_long2[1]
+
+                        # Open Positions
+                        if self.symbol not in self.long_dict.keys() and self.LONG2 == False and self.LONG_LOCK == False and long_condition2 != long_end2 and long_condition2:
+                            self.LONG2 = True
+                            bid_price = self.get_book_order_price("bid")
+                            amount = round(self.deposit/bid_price, 1)
+                            self.n2_long_price = round(close - atr, 5)
+                            Message(f"[OPEN-LONG 2] {self.symbol} sl:{self.n2_long_price}")
+                            self.orderFO(self.symbol, "BUY", "LONG", amount)
+
+                        # [TP] Close Positions 
+                        if self.symbol in self.long_dict.keys() and long_condition2 != long_end2 and self.SYSTEM2_LONG_LOCK == 0 and long_end2:
+                            self.LONG2 = False
+                            self.LONG_LOCK = True
+                            entryPrice = self.long_dict[self.symbol]['entryPrice']
+                            pnl = round(((close-entryPrice)/entryPrice)*100, 4)
+                            quantity = float(self.long_dict[self.symbol]['positionAmt'])
+                            Message(f"[TP CLOSE-LONG 2] {self.symbol} sl:{self.n2_long_price}, PNL: {pnl}")
+                            self.n2_long_price = 0.
+                            self.orderFO(self.symbol, "SELL", "LONG", quantity)
+
+                    if self.SYSTEM2_SHORT_LOCK != 0:
+                        _s1_short2 = Strategies.system1(self.high_list, self.low_list, _high_len=20, _low_len=55)
+
+                        short_condition2 = _s1_short2[1]
+                        short_end2 = _s1_short2[0]
+
+                        if self.symbol not in self.short_dict.keys() and self.SHORT2 == False and self.SHORT_LOCK == False and short_condition2 != short_end2 and short_condition2:
+                            
+                            self.SHORT2 = True
+                            ask_price = self.get_book_order_price("ask")
+                            amount = round(self.deposit/ask_price, 1)
+                            self.n2_short_price = round(close + atr, 5)
+                            Message(f"[OPEN-SHORT 2] {self.symbol} sl:{self.n2_short_price}")
+                            self.orderFO(self.symbol, "SELL", "SHORT", amount)
+
+                        if self.symbol in self.short_dict.keys() and short_condition2 != short_end2 and self.SYSTEM2_SHORT_LOCK == 0 and short_end2:
+                            self.SHORT2 = False
+                            self.SHORT_LOCK = True
+                            entryPrice = self.short_dict[self.symbol]['entryPrice']
+                            pnl = round(((close-entryPrice)/entryPrice)*-100, 4)
+                            quantity = float(self.short_dict[self.symbol]['positionAmt'])
+                            Message(f"[TP CLOSE-SHORT 2] {self.symbol} sl:{self.n2_short_price} PNL: {pnl}")
+                            self.n2_short_price = 0.
+                            self.orderFO(self.symbol, "BUY", "SHORT", quantity)
+
+                    # SYSTEM 1
                     _s1_long = Strategies.system1(self.high_list, self.low_list)
                     _s1_short = Strategies.system1(self.high_list, self.low_list, _high_len=14, _low_len=28)
 
@@ -182,30 +245,45 @@ class Binance:
                     short_condition = _s1_short[1]
                     short_end = _s1_short[0]
 
+                    long_condition = _s1_long[0]
+                    long_end = _s1_long[1]
+
+                    short_condition = _s1_short[1]
+                    short_end = _s1_short[0]
+
+                    if (long_condition != long_end) and long_condition == True and self.SYSTEM2_LONG_LOCK == 1:
+                        self.SYSTEM2_LONG_LOCK = -1
+
+                    if (short_condition != short_end) and short_condition == True and self.SYSTEM2_SHORT_LOCK == 1:
+                        self.SYSTEM2_SHORT_LOCK = -1
+
+                    if (long_condition != long_end) and long_end == True and self.SYSTEM2_LONG_LOCK == -1:
+                        self.SYSTEM2_LONG_LOCK = 0
+
+                    if (short_condition != short_end) and short_end == True and self.SYSTEM2_SHORT_LOCK == -1:
+                        self.SYSTEM2_SHORT_LOCK = 0
+
                     if (long_condition != long_end) and (self.LONG_LOCK and long_end) == True:
                         self.LONG_LOCK = False
 
                     if (short_condition != short_end) and (self.SHORT_LOCK and short_end) == True:
                         self.SHORT_LOCK = False
 
-                    atr = Indicators.atr(self.high_list,self.low_list,self.close_list, 28)
-                    atr = round(atr, 4)*2
-
                     # Open Positions
-                    if self.symbol not in self.long_dict.keys() and self.LONG_LOCK == False and long_condition != long_end and long_condition:
+                    if self.symbol not in self.long_dict.keys() and self.LONG2 == False and self.SYSTEM2_LONG_LOCK == 0 and self.LONG_LOCK == False and long_condition != long_end and long_condition:
 
                         bid_price = self.get_book_order_price("bid")
                         amount = round(self.deposit/bid_price, 1)
                         self.n2_long_price = round(close - atr, 5)
-                        Message(f"[OPEN-LONG] {self.symbol}")
+                        Message(f"[OPEN-LONG 1] {self.symbol}, sl:{self.n2_long_price}")
                         self.orderFO(self.symbol, "BUY", "LONG", amount)
 
-                    if self.symbol not in self.short_dict.keys() and self.SHORT_LOCK == False and short_condition != short_end and short_condition:
+                    if self.symbol not in self.short_dict.keys() and self.SHORT2 == False and self.SYSTEM2_SHORT_LOCK == 0 and self.SHORT_LOCK == False and short_condition != short_end and short_condition:
 
                         ask_price = self.get_book_order_price("ask")
                         amount = round(self.deposit/ask_price, 1)
                         self.n2_short_price = round(close + atr, 5)
-                        Message(f"[OPEN-SHORT] {self.symbol}")
+                        Message(f"[OPEN-SHORT 1] {self.symbol}, sl:{self.n2_short_price}")
                         self.orderFO(self.symbol, "SELL", "SHORT", amount)
 
                     # [TP] Close Positions 
@@ -214,8 +292,11 @@ class Binance:
                         entryPrice = self.long_dict[self.symbol]['entryPrice']
                         pnl = round(((close-entryPrice)/entryPrice)*100, 4)
                         quantity = float(self.long_dict[self.symbol]['positionAmt'])
-                        Message(f"[TP CLOSE-LONG] {self.symbol}")
+                        Message(f"[TP CLOSE-LONG 1] {self.symbol} , sl:{self.n2_long_price}, PNL: {pnl}")
                         self.n2_long_price = 0.
+                        if pnl > 0:
+                            Message("[LONG 1] 이익 실현, 다음 매수 신호만 무시")
+                            self.SYSTEM2_LONG_LOCK = 1
                         self.orderFO(self.symbol, "SELL", "LONG", quantity)
 
                     if self.symbol in self.short_dict.keys() and short_condition != short_end and short_end:
@@ -223,8 +304,11 @@ class Binance:
                         entryPrice = self.short_dict[self.symbol]['entryPrice']
                         pnl = round(((close-entryPrice)/entryPrice)*-100, 4)
                         quantity = float(self.short_dict[self.symbol]['positionAmt'])
-                        Message(f"[TP CLOSE-SHORT] {self.symbol}")
+                        Message(f"[TP CLOSE-SHORT 1] {self.symbol} ,sl:{self.n2_short_price}, PNL: {pnl}")
                         self.n2_short_price = 0.
+                        if pnl > 0:
+                            Message("[SHORT 1] 이익 실현, 다음 매수 신호만 무시")
+                            self.SYSTEM2_SHORT_LOCK = 1
                         self.orderFO(self.symbol, "BUY", "SHORT", quantity)                        
 
                 self.close_list.insert(0, close)
@@ -237,7 +321,8 @@ class Binance:
                         entryPrice = self.long_dict[self.symbol]['entryPrice']
                         quantity = self.long_dict[self.symbol]['positionAmt']
                         pnl = ((close-entryPrice)/entryPrice)*100
-                        Message(f"[SL CLOSE-LONG] {self.symbol} PNL: {pnl},{self.n2_long_price}")
+                        Message(f"[SL CLOSE-LONG] {self.symbol} , sl:{self.n2_long_price}, PNL: {pnl}")
+                        self.LONG2 = False
                         self.LONG_LOCK = True
                         self.n2_long_price = 0
                         self.orderFO(self.symbol, "SELL", "LONG", quantity)
@@ -249,7 +334,8 @@ class Binance:
                         entryPrice = self.short_dict[self.symbol]['entryPrice']
                         quantity = self.short_dict[self.symbol]['positionAmt']
                         pnl = ((close-entryPrice)/entryPrice)*-100
-                        Message(f"[SL CLOSE-SHORT] {self.symbol} PNL: {pnl},{self.n2_short_price}")
+                        Message(f"[SL CLOSE-SHORT] {self.symbol},sl:{self.n2_short_price},  PNL: {pnl}")
+                        self.SHORT2 = False
                         self.SHORT_LOCK = True
                         self.n2_short_price = 0
                         self.orderFO(self.symbol, "BUY", "SHORT", quantity)
