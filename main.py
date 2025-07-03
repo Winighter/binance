@@ -17,7 +17,7 @@ class Binance:
 
         self.ORDER_LOCK = False
         self.LONG_LOCK = True
-        self.SHORT_LOCK = True
+        self.SHORT_LOCK = False
 
         self.LONG2 = False
         self.SHORT2 = False
@@ -30,9 +30,6 @@ class Binance:
 
         self.order_long_Id = 0
         self.order_short_Id = 0
-
-        self.order_long_dict = {}
-        self.order_short_dict = {}
 
         # RUN
         print(f"\nStart Binance...\n")
@@ -211,7 +208,7 @@ class Binance:
                             self.orderFO(self.symbol, "SELL", "LONG", quantity)
 
                     if self.SYSTEM2_SHORT_LOCK != 0:
-                        _s1_short2 = Strategies.system1(self.high_list, self.low_list, _high_len=20, _low_len=55)
+                        _s1_short2 = Strategies.system1(self.high_list, self.low_list, _high_len=28, _low_len=77)
 
                         short_condition2 = _s1_short2[1]
                         short_end2 = _s1_short2[0]
