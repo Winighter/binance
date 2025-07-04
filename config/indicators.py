@@ -111,66 +111,45 @@ class Indicators():
         return result
 
     # Relative Strength Index
-    def rsi(_src:list, _length:int, _array:int = 0):
+    def rsi(_src, _length, _array:int = 0):
 
-        up_list = []
-        down_list = []
-
+        u_list = []
+        d_list = []
+        result = []
         for i in range(len(_src)):
+
             index = len(_src) - i - 1
 
-            u = max(round(_src[index-1] - _src[index], 5), 0)
-            up_list.append(u)
+            if i > 0:
 
-            d = max(round(_src[index] - _src[index-1], 5), 0)
-            down_list.append(d)
+                u = max(_src[index] - _src[index+1], 0)
+                d = max(_src[index+1] - _src[index], 0)
+                # u = round(u, 7)
+                # d = round(d, 7)
+                u_list.insert(0, u)
+                d_list.insert(0, d)
 
-            if i == len(_src) - 2:
-                break
+        _r = Indicators.rma(u_list, _length, None)
+        _d = Indicators.rma(d_list, _length, None)
 
-        rma_up_list = []
-        rma_down_list = []
+        for i in range(len(_r)):
 
-        for i in range(len(up_list)):
+            index = len(_r) - i -1
+            r = _r[index]
+            d = _d[index]
+            if (r ==0) or (d== 0):
+                rs = 0
+            else:
+                rs = r / d
+                rs = round(rs, 7)
 
-            if i >= _length -1:
-                up_sum = []
-                down_sum = []
-
-                if i == _length - 1:
-
-                    for ii in range(_length):
-
-                        up_sum.append(up_list[i-ii])
-                        down_sum.append(down_list[i-ii])
-
-                    rma_up_list.append(round(sum(up_sum)/_length, 5))
-                    rma_down_list.append(round(sum(down_sum)/_length, 5))
-                else:
-                    rma_up = (up_list[i] + rma_up_list[i-_length] * (_length-1)) / _length
-                    rma_up = round(rma_up, 5)
-                    rma_up_list.append(rma_up)
-
-                    rma_down = (down_list[i] + rma_down_list[i-_length] * (_length-1)) / _length
-                    rma_down = round(rma_down, 5)
-                    rma_down_list.append(rma_down)
-
-        rsi_list = []
-
-        for i in range(len(rma_up_list)):
-            r = rma_up_list[i]
-            s = rma_down_list[i]
-
-            rs = round(r / s, 5)
             res = 100 - 100 / (1 + rs)
-            res = round(res, 2)
-
-            rsi_list.insert(0, res)
+            res = round(res,2)
+            result.insert(0, res)
 
         if _array != None:
-            return rsi_list[_array]
-        else:
-            return rsi_list
+            result = result[_array]
+        return result
 
     def macd(_src:list, _array:int = 0):
 
@@ -248,7 +227,7 @@ class Indicators():
 
         return result
 
-    def atr(_high, _low, _close, _length, _array:int = 0):
+    def atr(_high, _low, _close, _length:int= 28, _array:int = 0):
 
         tr_list = []
 
@@ -269,46 +248,6 @@ class Indicators():
         if _array != None:
             result = result[_array]
         return result
-    
-    def atoi(_open, _high, _low , _close):
-
-        ema_length1 = 8
-        ema_length2 = 24
-        emaDiff_list = []
-        _ema1 = Indicators.ema(_close, ema_length1, None)
-        _ema2 = Indicators.ema(_close, ema_length2, None)
-
-        ema_length = min(len(_ema1),len(_ema2))
-
-        for i in range(ema_length):
-
-            index = ema_length - i - 1
-
-            ema1 = _ema1[index]
-            ema2 = _ema2[index]
-
-            emaDiff = ema1 - ema2
-
-            emaDiff_list.insert(0, emaDiff)
-
-        m, s, h = Indicators.macd(_close, None)
-
-        my_leng = min(len(emaDiff_list),len(_low),len(h))
-
-        for i in range(my_leng):
-
-            if i > 1:
-
-                index = my_leng - i - 1
-
-                long = _open[index+1] > _close[index+1] and _open[index] < _close[index]
-                short = _open[index+1] < _close[index+1] and _open[index] > _close[index]
-
-                long = long and emaDiff_list[index+1] < 0 and emaDiff_list[index+2] > emaDiff_list[index+1]
-                short = short and emaDiff_list[index+1] > 0 and emaDiff_list[index+2] < emaDiff_list[index+1]
-
-                long = long and h[index+2] > h[index+1]
-                short = short and h[index+2] < h[index+1]
 
     def marubozu(_open, _high, _low, _close, _array:int = 0, _C_Len = 14):
 
@@ -418,7 +357,6 @@ class Indicators():
             result = result[_array]
         return result
 
-
     def rsi_scalp(_open, _high, _low, _close, _array:int = 0):
 
         rsiL = 7
@@ -429,7 +367,7 @@ class Indicators():
 
         rsiOS_list = []
         result = []
-        _myRsi = Indicators.rsi2(_close, rsiL, None)
+        _myRsi = Indicators.rsi(_close, rsiL, None)
 
         my_len = min(len(_myRsi),len(_low))
 
@@ -466,49 +404,3 @@ class Indicators():
         if _array != None:
             result = result[_array]
         return result
-
-
-    def rsi2(_src, _length, _array:int = 0):
-
-        u_list = []
-        d_list = []
-        result = []
-        for i in range(len(_src)):
-
-            index = len(_src) - i - 1
-
-            if i > 0:
-
-                u = max(_src[index] - _src[index+1], 0)
-                d = max(_src[index+1] - _src[index], 0)
-                # u = round(u, 7)
-                # d = round(d, 7)
-                u_list.insert(0, u)
-                d_list.insert(0, d)
-
-        _r = Indicators.rma(u_list, _length, None)
-        _d = Indicators.rma(d_list, _length, None)
-
-        for i in range(len(_r)):
-
-            index = len(_r) - i -1
-            r = _r[index]
-            d = _d[index]
-            if (r ==0) or (d== 0):
-                rs = 0
-            else:
-                rs = r / d
-                rs = round(rs, 7)
-
-            res = 100 - 100 / (1 + rs)
-            res = round(res,2)
-            result.insert(0, res)
-
-        if _array != None:
-            result = result[_array]
-        return result
-    
-
-    def system1(_high, _low, _array=0, _open=30, _close=15):
-
-        print(_high)
