@@ -1,6 +1,6 @@
 class Strategies():
 
-    def system1(_high, _low, _array=0, _high_len=28, _low_len=14):
+    def system(_high, _low, _high_len=28, _low_len=14, _array=0):
 
         result = []
 
