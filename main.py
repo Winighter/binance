@@ -7,17 +7,14 @@ class Binance:
 
     def __init__(self, _access, _secret):
 
-        API_KEY = _access
-        API_SECRET = _secret
-
-        self.client = Client(API_KEY, API_SECRET)
+        self.client = Client(_access, _secret)
 
         self.symbol = "XRPUSDT"
         self.TIME = self.client.KLINE_INTERVAL_15MINUTE
 
-        self.ORDER_LOCK = False
+        self.ORDER_LOCK = True
         self.LONG_LOCK = True
-        self.SHORT_LOCK = False
+        self.SHORT_LOCK = True
 
         self.LONG2 = False
         self.SHORT2 = False
@@ -57,8 +54,8 @@ class Binance:
 
     def get_balance(self):
 
+        position = 45
         self.balance_dict = {}
-        position = 40 # 10 ~ 20 전체자산 기준 투자할 금액 비율 (%)
         balances = self.client.futures_account_balance()
 
         for i in balances:
@@ -138,24 +135,14 @@ class Binance:
 
         for candle in candles:
 
-            open = float(candle[1])
-            high = float(candle[2])
-            low = float(candle[3])
-            close = float(candle[4])
-
-            self.open_list.append(open)
-            self.high_list.append(high)
-            self.low_list.append(low)
-            self.close_list.append(close)
+            self.open_list.insert(0, float(candle[1]))
+            self.high_list.insert(0, float(candle[2]))
+            self.low_list.insert(0, float(candle[3]))
+            self.close_list.insert(0, float(candle[4]))
             count += 1
 
             if count == len(candles) - 1:
                 break
-
-        self.open_list.reverse()
-        self.high_list.reverse()
-        self.low_list.reverse()
-        self.close_list.reverse()
 
     def handle_socket_message(self, msg):
 
@@ -182,7 +169,7 @@ class Binance:
 
                     # SYSTEM 2
                     if self.SYSTEM2_LONG_LOCK != 0:
-                        _s1_long2 = Strategies.system1(self.high_list, self.low_list, _high_len=77, _low_len=28)
+                        _s1_long2 = Strategies.system(self.high_list, self.low_list, _high_len=77, _low_len=28)
 
                         long_condition2 = _s1_long2[0]
                         long_end2 = _s1_long2[1]
@@ -208,7 +195,7 @@ class Binance:
                             self.orderFO(self.symbol, "SELL", "LONG", quantity)
 
                     if self.SYSTEM2_SHORT_LOCK != 0:
-                        _s1_short2 = Strategies.system1(self.high_list, self.low_list, _high_len=28, _low_len=77)
+                        _s1_short2 = Strategies.system(self.high_list, self.low_list, _high_len=28, _low_len=77)
 
                         short_condition2 = _s1_short2[1]
                         short_end2 = _s1_short2[0]
@@ -233,8 +220,8 @@ class Binance:
                             self.orderFO(self.symbol, "BUY", "SHORT", quantity)
 
                     # SYSTEM 1
-                    _s1_long = Strategies.system1(self.high_list, self.low_list)
-                    _s1_short = Strategies.system1(self.high_list, self.low_list, _high_len=14, _low_len=28)
+                    _s1_long = Strategies.system(self.high_list, self.low_list)
+                    _s1_short = Strategies.system(self.high_list, self.low_list, _high_len=14, _low_len=28)
 
                     long_condition = _s1_long[0]
                     long_end = _s1_long[1]
@@ -247,12 +234,6 @@ class Binance:
 
                     short_condition = _s1_short[1]
                     short_end = _s1_short[0]
-
-                    if (long_condition != long_end) and long_condition == True and self.SYSTEM2_LONG_LOCK == 1:
-                        self.SYSTEM2_LONG_LOCK = -1
-
-                    if (short_condition != short_end) and short_condition == True and self.SYSTEM2_SHORT_LOCK == 1:
-                        self.SYSTEM2_SHORT_LOCK = -1
 
                     if (long_condition != long_end) and long_end == True and self.SYSTEM2_LONG_LOCK == -1:
                         self.SYSTEM2_LONG_LOCK = 0
@@ -260,10 +241,18 @@ class Binance:
                     if (short_condition != short_end) and short_end == True and self.SYSTEM2_SHORT_LOCK == -1:
                         self.SYSTEM2_SHORT_LOCK = 0
 
+                    if (long_condition != long_end) and long_condition == True and self.SYSTEM2_LONG_LOCK == 1:
+                        self.SYSTEM2_LONG_LOCK = -1
+
+                    if (short_condition != short_end) and short_condition == True and self.SYSTEM2_SHORT_LOCK == 1:
+                        self.SYSTEM2_SHORT_LOCK = -1
+
                     if (long_condition != long_end) and (self.LONG_LOCK and long_end) == True:
+                        Message("LONG_LOCK: False")
                         self.LONG_LOCK = False
 
                     if (short_condition != short_end) and (self.SHORT_LOCK and short_end) == True:
+                        Message("SHORT_LOCK: False")
                         self.SHORT_LOCK = False
 
                     # Open Positions
@@ -321,6 +310,7 @@ class Binance:
                         Message(f"[SL CLOSE-LONG] {self.symbol} , sl:{self.n2_long_price}, PNL: {pnl}")
                         self.LONG2 = False
                         self.LONG_LOCK = True
+                        Message("LONG_LOCK: True")
                         self.n2_long_price = 0
                         self.orderFO(self.symbol, "SELL", "LONG", quantity)
 
@@ -334,6 +324,7 @@ class Binance:
                         Message(f"[SL CLOSE-SHORT] {self.symbol},sl:{self.n2_short_price},  PNL: {pnl}")
                         self.SHORT2 = False
                         self.SHORT_LOCK = True
+                        Message("SHORT_LOCK: True")
                         self.n2_short_price = 0
                         self.orderFO(self.symbol, "BUY", "SHORT", quantity)
 
@@ -387,4 +378,4 @@ if __name__ == "__main__":
         api_key = lines[0].strip()
         api_secret = lines[1].strip()
 
-    binance = Binance(api_key, api_secret)
+    Binance(api_key, api_secret)
