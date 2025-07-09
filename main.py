@@ -254,8 +254,8 @@ class Binance:
 
                     # SYSTEM 2
                     if self.SYSTEM2:
-                        _long_system2 = Strategies.system(self.high_list, self.low_list, _high_len=77, _low_len=28)
-                        _short_system2 = Strategies.system(self.high_list, self.low_list, _high_len=28, _low_len=77)
+                        _long_system2 = Strategies.system(self.high_list, self.low_list, _high_len=56, _low_len=28)
+                        _short_system2 = Strategies.system(self.high_list, self.low_list, _high_len=28, _low_len=56)
 
                         open_long2 = _long_system2[0]
                         close_long2 = _long_system2[1]
