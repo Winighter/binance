@@ -10,9 +10,11 @@ class Binance:
         self.client = Client(_access, _secret)
 
         self.symbol = "XRPUSDT"
-        TIME = self.client.KLINE_INTERVAL_1MINUTE
+        TIME = self.client.KLINE_INTERVAL_15MINUTE
 
         self.ORDER_LOCK = False
+        self.SYSTEM1 = True
+        self.SYSTEM2 = True
 
         self.LONG_LOCK = 1 # 0: False, 1: True
         self.SHORT_LOCK = 1 # 0: False, 1: True
@@ -22,6 +24,7 @@ class Binance:
 
         self.n2_long_price = 0
         self.n2_short_price = 0
+
         self.n2_long_price2 = 0
         self.n2_short_price2 = 0
 
@@ -161,219 +164,227 @@ class Binance:
                     atr = round(atr, 4)*2
 
                     # SYSTEM 1
-                    _long_system = Strategies.system(self.high_list, self.low_list, _high_len=28, _low_len=14)
-                    _short_system = Strategies.system(self.high_list, self.low_list, _high_len=14, _low_len=28)
+                    if self.SYSTEM1:
+                        _long_system = Strategies.system(self.high_list, self.low_list, _high_len=28, _low_len=14)
+                        _short_system = Strategies.system(self.high_list, self.low_list, _high_len=14, _low_len=28)
 
-                    open_long = _long_system[0]
-                    close_long = _long_system[1]
+                        open_long = _long_system[0]
+                        close_long = _long_system[1]
 
-                    open_short = _short_system[1]
-                    close_short = _short_system[0]
+                        open_short = _short_system[1]
+                        close_short = _short_system[0]
 
-                    # LONG TERRITORY 1
-                    if open_long != close_long:
+                        # LONG TERRITORY 1
+                        if open_long != close_long:
 
-                        if self.LONG_LOCK == -1:
-                            if open_long:
+                            if self.LONG_LOCK == -1:
+                                if open_long:
+                                    self.LONG_LOCK = 1
+
+                            if self.LONG_LOCK == 1:
+                                if close_long:
+                                    self.LONG_LOCK = 0
+
+                            # CLOSE LONG 1
+                            if self.symbol in self.long_dict:
+                                
+                                if self.LONG_LOCK and close_long:
+
+                                    qty = float(self.long_dict[self.symbol]['positionAmt'])
+                                    price = self.long_dict[self.symbol]['entryPrice']
+                                    pnl = round(((close-price)/price)*100, 4)
+                                    Message(f"[{self.symbol} TP CLOSE-LONG 1] SL:{self.n2_long_price} PNL: {pnl}")
+                                    self.orderFO(self.symbol, "SELL", "LONG", qty)
+                                    self.n2_long_price = 0.
+                                    if pnl > 0:
+                                        self.LONG_LOCK == -1
+                                        Message("[LONG] 이익 실현, 다음 매수 신호만 무시")
+
+                                if open_long:
+                                    self.LONG_LOCK = 1
+
+                            # OPEN LONG 1
+                            if self.symbol not in self.long_dict and self.LONG_LOCK == 0 and open_long:
+
+                                self.n2_long_price = round(close - atr, 5)
+                                price = self.get_book_order_price("bid")
+                                amount = round(self.deposit/price, 1)
                                 self.LONG_LOCK = 1
+                                Message(f"[{self.symbol} OPEN-LONG 1] SL:{self.n2_long_price}")
+                                self.orderFO(self.symbol, "BUY", "LONG", amount)
 
-                        if self.LONG_LOCK == 1:
-                            if close_long:
-                                self.LONG_LOCK = 0
+                        # SHORT TERRITORY 1
+                        if open_short != close_short:
 
-                        # CLOSE LONG 1
-                        if self.symbol in self.long_dict:
-                            
-                            if close_long:
+                            if self.SHORT_LOCK == -1:
+                                if open_short:
+                                    self.SHORT_LOCK = 1
 
-                                qty = float(self.long_dict[self.symbol]['positionAmt'])
-                                price = self.long_dict[self.symbol]['entryPrice']
-                                pnl = round(((close-price)/price)*100, 4)
-                                Message(f"[{self.symbol} TP CLOSE-LONG 1] SL:{self.n2_long_price} PNL: {pnl}")
-                                self.orderFO(self.symbol, "SELL", "LONG", qty)
-                                self.n2_long_price = 0.
-                                if pnl > 0:
-                                    self.LONG_LOCK == -1
-                                    Message("[LONG] 이익 실현, 다음 매수 신호만 무시")
-                            
-                            if open_long:
-                                self.LONG_LOCK = 1
+                            if self.SHORT_LOCK == 1:
+                                if close_short:
+                                    self.SHORT_LOCK = 0
 
-                        # OPEN LONG 1
-                        if self.symbol not in self.long_dict and self.LONG_LOCK == 0 and open_long:
+                            # CLOSE SHORT 1
+                            if self.symbol in self.short_dict:
 
-                            self.n2_long_price = round(close - atr, 5)
-                            price = self.get_book_order_price("bid")
-                            amount = round(self.deposit/price, 1)
-                            Message(f"[{self.symbol} OPEN-LONG 1] SL:{self.n2_long_price}")
-                            self.orderFO(self.symbol, "BUY", "LONG", amount)
+                                if self.SHORT_LOCK and close_short:
 
-                    # SHORT TERRITORY 1
-                    if open_short != close_short:
+                                    qty = float(self.short_dict[self.symbol]['positionAmt'])
+                                    price = self.short_dict[self.symbol]['entryPrice']
+                                    pnl = round(((close-price)/price)*-100, 4)
+                                    Message(f"[{self.symbol} TP CLOSE-SHORT 1] SL:{self.n2_short_price} PNL: {pnl}")
+                                    self.orderFO(self.symbol, "BUY", "SHORT", qty)
+                                    self.n2_short_price = 0.
+                                    if pnl > 0:
+                                        self.SHORT_LOCK == -1
+                                        Message("[SHORT 1] 이익 실현, 다음 매수 신호만 무시")
 
-                        if self.SHORT_LOCK == -1:
-                            if open_short:
+                                if open_short:
+                                    self.SHORT_LOCK = 1
+
+                            # OPEN SHORT 1
+                            if self.symbol not in self.short_dict and self.SHORT_LOCK == 0 and open_short:
+
+                                self.n2_short_price = round(close + atr, 5)
+                                price = self.get_book_order_price("ask")
+                                amount = round(self.deposit/price, 1)
                                 self.SHORT_LOCK = 1
-
-                        if self.SHORT_LOCK == 1:
-                            if close_short:
-                                self.SHORT_LOCK = 0
-
-                        # CLOSE SHORT 1
-                        if self.symbol in self.short_dict:
-                            
-                            if close_short:
-
-                                qty = float(self.short_dict[self.symbol]['positionAmt'])
-                                price = self.short_dict[self.symbol]['entryPrice']
-                                pnl = round(((close-price)/price)*-100, 4)
-                                Message(f"[{self.symbol} TP CLOSE-SHORT 1] SL:{self.n2_short_price} PNL: {pnl}")
-                                self.orderFO(self.symbol, "BUY", "SHORT", qty)
-                                self.n2_short_price = 0.
-                                if pnl > 0:
-                                    self.SHORT_LOCK == -1
-                                    Message("[SHORT 1] 이익 실현, 다음 매수 신호만 무시")
-
-                            if open_short:
-                                self.SHORT_LOCK = 1
-
-                        # OPEN SHORT 1
-                        if self.symbol not in self.short_dict and self.SHORT_LOCK == 0 and open_short:
-
-                            self.n2_short_price = round(close + atr, 5)
-                            price = self.get_book_order_price("ask")
-                            amount = round(self.deposit/price, 1)
-                            Message(f"[{self.symbol} OPEN-SHORT 1] SL:{self.n2_short_price}")
-                            self.orderFO(self.symbol, "SELL", "SHORT", amount)
+                                Message(f"[{self.symbol} OPEN-SHORT 1] SL:{self.n2_short_price}")
+                                self.orderFO(self.symbol, "SELL", "SHORT", amount)
 
                     # SYSTEM 2
-                    _long_system2 = Strategies.system(self.high_list, self.low_list, _high_len=77, _low_len=28)
-                    _short_system2 = Strategies.system(self.high_list, self.low_list, _high_len=28, _low_len=77)
+                    if self.SYSTEM2:
+                        _long_system2 = Strategies.system(self.high_list, self.low_list, _high_len=77, _low_len=28)
+                        _short_system2 = Strategies.system(self.high_list, self.low_list, _high_len=28, _low_len=77)
 
-                    open_long2 = _long_system2[0]
-                    close_long2 = _long_system2[1]
+                        open_long2 = _long_system2[0]
+                        close_long2 = _long_system2[1]
 
-                    open_short2 = _short_system2[1]
-                    close_short2 = _short_system2[0]
+                        open_short2 = _short_system2[1]
+                        close_short2 = _short_system2[0]
 
-                    # LONG TERRITORY 2
-                    if open_long2 != close_long2:
+                        # LONG TERRITORY 2
+                        if open_long2 != close_long2:
 
-                        if self.LONG_LOCK2 == -1:
-                            if open_long2:
+                            if self.LONG_LOCK2 == -1:
+                                if open_long2:
+                                    self.LONG_LOCK2 = 1
+
+                            if self.LONG_LOCK2 == 1:
+                                if close_long2:
+                                    self.LONG_LOCK2 = 0
+
+                            # CLOSE LONG 2
+                            if self.symbol in self.long_dict:
+
+                                if self.LONG_LOCK2 and close_long2:
+
+                                    qty = float(self.long_dict[self.symbol]['positionAmt'])
+                                    price = self.long_dict[self.symbol]['entryPrice']
+                                    pnl = round(((close-price)/price)*100, 4)
+                                    Message(f"[{self.symbol} TP CLOSE-LONG 2] SL:{self.n2_long_price2} PNL: {pnl}")
+                                    self.orderFO(self.symbol, "SELL", "LONG", qty)
+                                    self.n2_long_price2 = 0.
+                                    if pnl > 0:
+                                        self.LONG_LOCK2 == -1
+                                        Message("[LONG 2] 이익 실현, 다음 매수 신호만 무시")
+
+                                if open_long2:
+                                    self.LONG_LOCK2 = 1
+
+                            # OPEN LONG 2
+                            elif self.symbol not in self.long_dict and self.LONG_LOCK2 == 0 and open_long2:
+
+                                self.n2_long_price2 = round(close - atr, 5)
+                                price = self.get_book_order_price("bid")
+                                amount = round(self.deposit/price, 1)
                                 self.LONG_LOCK2 = 1
+                                Message(f"[{self.symbol} OPEN-LONG 2] SL:{self.n2_long_price2}")
+                                self.orderFO(self.symbol, "BUY", "LONG", amount)
 
-                        if self.LONG_LOCK2 == 1:
-                            if close_long2:
-                                self.LONG_LOCK2 = 0
+                        # SHORT TERRITORY 2
+                        if open_short2 != close_short2:
 
-                        # CLOSE LONG 1
-                        if self.symbol in self.long_dict:
+                            if self.SHORT_LOCK2 == -1:
+                                if open_short2:
+                                    self.SHORT_LOCK2 = 1
 
-                            if close_long2:
+                            if self.SHORT_LOCK2 == 1:
+                                if close_short2:
+                                    self.SHORT_LOCK2 = 0
 
-                                qty = float(self.long_dict[self.symbol]['positionAmt'])
-                                price = self.long_dict[self.symbol]['entryPrice']
-                                pnl = round(((close-price)/price)*100, 4)
-                                Message(f"[{self.symbol} TP CLOSE-LONG 2] SL:{self.n2_long_price2} PNL: {pnl}")
-                                self.orderFO(self.symbol, "SELL", "LONG", qty)
-                                self.n2_long_price2 = 0.
-                                if pnl > 0:
-                                    self.LONG_LOCK2 == -1
-                                    Message("[LONG 2] 이익 실현, 다음 매수 신호만 무시")
+                            # CLOSE SHORT 2
+                            if self.symbol in self.short_dict:
+                                
+                                if self.SHORT_LOCK2 and close_short2:
 
-                            if open_long2:
-                                self.LONG_LOCK2 = 1
-
-                        # OPEN LONG 1
-                        elif self.symbol not in self.long_dict and self.LONG_LOCK2 == 0 and open_long2:
-
-                            self.n2_long_price2 = round(close - atr, 5)
-                            price = self.get_book_order_price("bid")
-                            amount = round(self.deposit/price, 1)
-                            Message(f"[{self.symbol} OPEN-LONG 2] SL:{self.n2_long_price2}")
-                            self.orderFO(self.symbol, "BUY", "LONG", amount)
-
-                    # SHORT TERRITORY 2
-                    if open_short2 != close_short2:
-
-                        if self.SHORT_LOCK2 == -1:
-                            if open_short2:
-                                self.SHORT_LOCK2 = 1
-
-                        if self.SHORT_LOCK2 == 1:
-                            if close_short2:
-                                self.SHORT_LOCK2 = 0
-
-                        # CLOSE SHORT 1
-                        if self.symbol in self.short_dict:
+                                    qty = float(self.short_dict[self.symbol]['positionAmt'])
+                                    price = self.short_dict[self.symbol]['entryPrice']
+                                    pnl = round(((close-price)/price)*-100, 4)
+                                    Message(f"[{self.symbol} TP CLOSE-SHORT 2] SL:{self.n2_short_price2} PNL: {pnl}")
+                                    self.orderFO(self.symbol, "BUY", "SHORT", qty)
+                                    self.n2_short_price2 = 0.
+                                    if pnl > 0:
+                                        self.SHORT_LOCK2 == -1
+                                        Message("[SHORT 2] 이익 실현, 다음 매수 신호만 무시")
+                                
+                                if open_short2:
+                                    self.SHORT_LOCK2 = 1
                             
-                            if close_short2:
+                            # OPEN SHORT 2
+                            elif self.symbol not in self.short_dict and self.SHORT_LOCK2 == 0 and open_short2:
 
-                                qty = float(self.short_dict[self.symbol]['positionAmt'])
-                                price = self.short_dict[self.symbol]['entryPrice']
-                                pnl = round(((close-price)/price)*-100, 4)
-                                Message(f"[{self.symbol} TP CLOSE-SHORT 2] SL:{self.n2_short_price2} PNL: {pnl}")
-                                self.orderFO(self.symbol, "BUY", "SHORT", qty)
-                                self.n2_short_price2 = 0.
-                                if pnl > 0:
-                                    self.SHORT_LOCK2 == -1
-                                    Message("[SHORT 2] 이익 실현, 다음 매수 신호만 무시")
-                            
-                            if open_short2:
+                                self.n2_short_price2 = round(close + atr, 5)
+                                price = self.get_book_order_price("ask")
+                                amount = round(self.deposit/price, 1)
                                 self.SHORT_LOCK2 = 1
-                        
-                        # OPEN SHORT 1
-                        elif self.symbol not in self.short_dict and self.SHORT_LOCK2 == 0 and open_short2:
-
-                            self.n2_short_price2 = round(close + atr, 5)
-                            price = self.get_book_order_price("ask")
-                            amount = round(self.deposit/price, 1)
-                            Message(f"[{self.symbol} OPEN-SHORT 2] SL:{self.n2_short_price2}")
-                            self.orderFO(self.symbol, "SELL", "SHORT", amount)
+                                Message(f"[{self.symbol} OPEN-SHORT 2] SL:{self.n2_short_price2}")
+                                self.orderFO(self.symbol, "SELL", "SHORT", amount)
 
                 self.close_list.insert(0, close)
 
                 # SL Close TERRITORY
-                if self.symbol in self.long_dict and 0 < self.n2_long_price and close < self.n2_long_price:
+                if self.SYSTEM1:
+                    if self.symbol in self.long_dict and 0 < self.n2_long_price and close < self.n2_long_price:
 
-                    self.LONG_LOCK = 1
-                    price = self.long_dict[self.symbol]['entryPrice']
-                    qty = self.long_dict[self.symbol]['positionAmt']
-                    pnl = ((close-price)/price)*100
-                    Message(f"[{self.symbol} SL CLOSE-LONG] SL:{self.n2_long_price} PNL: {pnl}")
-                    self.orderFO(self.symbol, "SELL", "LONG", qty)
-                    self.n2_long_price = 0
+                        self.LONG_LOCK = 1
+                        price = self.long_dict[self.symbol]['entryPrice']
+                        qty = self.long_dict[self.symbol]['positionAmt']
+                        pnl = ((close-price)/price)*100
+                        Message(f"[{self.symbol} SL CLOSE-LONG] SL:{self.n2_long_price} PNL: {pnl}")
+                        self.orderFO(self.symbol, "SELL", "LONG", qty)
+                        self.n2_long_price = 0
 
-                if self.symbol in self.short_dict and 0 < self.n2_short_price and close > self.n2_short_price:
+                    if self.symbol in self.short_dict and 0 < self.n2_short_price and close > self.n2_short_price:
 
-                    self.SHORT_LOCK = 1
-                    entryPrice = self.short_dict[self.symbol]['entryPrice']
-                    quantity = self.short_dict[self.symbol]['positionAmt']
-                    pnl = ((close-entryPrice)/entryPrice)*-100
-                    Message(f"[{self.symbol} SL CLOSE-SHORT] SL:{self.n2_short_price} PNL: {pnl}")
-                    self.orderFO(self.symbol, "BUY", "SHORT", quantity)
-                    self.n2_short_price = 0
+                        self.SHORT_LOCK = 1
+                        entryPrice = self.short_dict[self.symbol]['entryPrice']
+                        quantity = self.short_dict[self.symbol]['positionAmt']
+                        pnl = ((close-entryPrice)/entryPrice)*-100
+                        Message(f"[{self.symbol} SL CLOSE-SHORT] SL:{self.n2_short_price} PNL: {pnl}")
+                        self.orderFO(self.symbol, "BUY", "SHORT", quantity)
+                        self.n2_short_price = 0
 
-                if self.symbol in self.long_dict and 0 < self.n2_long_price2 and close < self.n2_long_price2:
+                if self.SYSTEM2:
+                    if self.symbol in self.long_dict and 0 < self.n2_long_price2 and close < self.n2_long_price2:
 
-                    self.LONG_LOCK2 = 1
-                    price = self.long_dict[self.symbol]['entryPrice']
-                    qty = self.long_dict[self.symbol]['positionAmt']
-                    pnl = ((close-price)/price)*100
-                    Message(f"[{self.symbol} SL CLOSE-LONG 2] SL:{self.n2_long_price2} PNL: {pnl}")
-                    self.orderFO(self.symbol, "SELL", "LONG", qty)
-                    self.n2_long_price2 = 0
+                        self.LONG_LOCK2 = 1
+                        price = self.long_dict[self.symbol]['entryPrice']
+                        qty = self.long_dict[self.symbol]['positionAmt']
+                        pnl = ((close-price)/price)*100
+                        Message(f"[{self.symbol} SL CLOSE-LONG 2] SL:{self.n2_long_price2} PNL: {pnl}")
+                        self.orderFO(self.symbol, "SELL", "LONG", qty)
+                        self.n2_long_price2 = 0
 
-                if self.symbol in self.short_dict and 0 < self.n2_short_price2 and close > self.n2_short_price2:
+                    if self.symbol in self.short_dict and 0 < self.n2_short_price2 and close > self.n2_short_price2:
 
-                    self.SHORT_LOCK2 = 1
-                    entryPrice = self.short_dict[self.symbol]['entryPrice']
-                    quantity = self.short_dict[self.symbol]['positionAmt']
-                    pnl = ((close-entryPrice)/entryPrice)*-100
-                    Message(f"[{self.symbol} SL CLOSE-SHORT 2] SL:{self.n2_short_price2} PNL: {pnl}")
-                    self.orderFO(self.symbol, "BUY", "SHORT", quantity)
-                    self.n2_short_price2 = 0
+                        self.SHORT_LOCK2 = 1
+                        entryPrice = self.short_dict[self.symbol]['entryPrice']
+                        quantity = self.short_dict[self.symbol]['positionAmt']
+                        pnl = ((close-entryPrice)/entryPrice)*-100
+                        Message(f"[{self.symbol} SL CLOSE-SHORT 2] SL:{self.n2_short_price2} PNL: {pnl}")
+                        self.orderFO(self.symbol, "BUY", "SHORT", quantity)
+                        self.n2_short_price2 = 0
 
                 del self.close_list[0]
 
