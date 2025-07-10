@@ -10,17 +10,20 @@ class Binance:
         self.client = Client(_access, _secret)
 
         self.symbol = "XRPUSDT"
-        TIME = self.client.KLINE_INTERVAL_15MINUTE
+        TIME = self.client.KLINE_INTERVAL_5MINUTE
 
         self.ORDER_LOCK = False
         self.SYSTEM1 = True
         self.SYSTEM2 = True
 
-        self.LONG_LOCK = 1 # 0: False, 1: True
-        self.SHORT_LOCK = 1 # 0: False, 1: True
+        self.LONG_LOCK = 0 # 0: False, 1: True
+        self.SHORT_LOCK = 0 # 0: False, 1: True
 
-        self.LONG_LOCK2 = 1 # 0: False, 1: True
-        self.SHORT_LOCK2 = 1 # 0: False, 1: True
+        self.LONG_LOCK2 = 0 # 0: False, 1: True
+        self.SHORT_LOCK2 = 0 # 0: False, 1: True
+
+        self.long_open = False
+        self.short_open = False
 
         self.n2_long_price = 0
         self.n2_short_price = 0
@@ -36,13 +39,13 @@ class Binance:
         self.is_connected_flag = False # 초기 연결 및 재연결 상태를 나타내는 플래그
 
         # RUN
-        print(f"\nStart Binance...\n")
+        Message(f"\nStart Binance...\n")
         self.get_balance(True)
         self.get_positions()
         self.get_candle_chart(TIME)
         self.start_websocket(self.symbol, TIME)
 
-    def get_balance(self, _default:bool = False, _leverage:int = 10, _position_rate:int = 45):
+    def get_balance(self, _default:bool = False, _leverage:int = 1, _position_rate:int = 10):
         
         if _default:
             self.client.futures_change_leverage(symbol = self.symbol, leverage = _leverage)
@@ -161,7 +164,7 @@ class Binance:
 
                     # ATR
                     atr = Indicators.atr(self.high_list, self.low_list, self.close_list)
-                    atr = round(atr, 4)*2
+                    atr = round(atr, 4)*1.8
 
                     # SYSTEM 1
                     if self.SYSTEM1:
@@ -180,15 +183,17 @@ class Binance:
                             if self.LONG_LOCK == -1:
                                 if open_long:
                                     self.LONG_LOCK = 1
+                                    Message(f"Change LONG_LOCK 1: {self.LONG_LOCK}")
 
                             if self.LONG_LOCK == 1:
                                 if close_long:
                                     self.LONG_LOCK = 0
+                                    Message(f"Change LONG_LOCK 1: {self.LONG_LOCK}")
 
                             # CLOSE LONG 1
                             if self.symbol in self.long_dict:
-                                
-                                if self.LONG_LOCK and close_long:
+
+                                if close_long:
 
                                     qty = float(self.long_dict[self.symbol]['positionAmt'])
                                     price = self.long_dict[self.symbol]['entryPrice']
@@ -200,12 +205,9 @@ class Binance:
                                         self.LONG_LOCK == -1
                                         Message("[LONG] 이익 실현, 다음 매수 신호만 무시")
 
-                                if open_long:
-                                    self.LONG_LOCK = 1
-
                             # OPEN LONG 1
-                            if self.symbol not in self.long_dict and self.LONG_LOCK == 0 and open_long:
-
+                            elif self.symbol not in self.long_dict and self.LONG_LOCK == 0 and open_long:
+                                self.long_open = True
                                 self.n2_long_price = round(close - atr, 5)
                                 price = self.get_book_order_price("bid")
                                 amount = round(self.deposit/price, 1)
@@ -219,15 +221,17 @@ class Binance:
                             if self.SHORT_LOCK == -1:
                                 if open_short:
                                     self.SHORT_LOCK = 1
+                                    Message(f"Change SHORT_LOCK 1: {self.SHORT_LOCK}")
 
                             if self.SHORT_LOCK == 1:
                                 if close_short:
                                     self.SHORT_LOCK = 0
+                                    Message(f"Change SHORT_LOCK 1: {self.SHORT_LOCK}")
 
                             # CLOSE SHORT 1
                             if self.symbol in self.short_dict:
 
-                                if self.SHORT_LOCK and close_short:
+                                if close_short:
 
                                     qty = float(self.short_dict[self.symbol]['positionAmt'])
                                     price = self.short_dict[self.symbol]['entryPrice']
@@ -239,12 +243,10 @@ class Binance:
                                         self.SHORT_LOCK == -1
                                         Message("[SHORT 1] 이익 실현, 다음 매수 신호만 무시")
 
-                                if open_short:
-                                    self.SHORT_LOCK = 1
-
                             # OPEN SHORT 1
-                            if self.symbol not in self.short_dict and self.SHORT_LOCK == 0 and open_short:
-
+                            elif self.symbol not in self.short_dict and self.SHORT_LOCK == 0 and open_short:
+                                
+                                self.short_open = True
                                 self.n2_short_price = round(close + atr, 5)
                                 price = self.get_book_order_price("ask")
                                 amount = round(self.deposit/price, 1)
@@ -269,15 +271,17 @@ class Binance:
                             if self.LONG_LOCK2 == -1:
                                 if open_long2:
                                     self.LONG_LOCK2 = 1
+                                    Message(f"Change LONG_LOCK2: {self.LONG_LOCK2}")
 
                             if self.LONG_LOCK2 == 1:
                                 if close_long2:
                                     self.LONG_LOCK2 = 0
+                                    Message(f"Change LONG_LOCK2: {self.LONG_LOCK2}")
 
                             # CLOSE LONG 2
                             if self.symbol in self.long_dict:
 
-                                if self.LONG_LOCK2 and close_long2:
+                                if close_long2:
 
                                     qty = float(self.long_dict[self.symbol]['positionAmt'])
                                     price = self.long_dict[self.symbol]['entryPrice']
@@ -289,18 +293,17 @@ class Binance:
                                         self.LONG_LOCK2 == -1
                                         Message("[LONG 2] 이익 실현, 다음 매수 신호만 무시")
 
-                                if open_long2:
-                                    self.LONG_LOCK2 = 1
-
                             # OPEN LONG 2
-                            elif self.symbol not in self.long_dict and self.LONG_LOCK2 == 0 and open_long2:
+                            elif self.symbol not in self.long_dict and self.LONG_LOCK != 0 and self.LONG_LOCK2 == 0 and open_long2:
 
-                                self.n2_long_price2 = round(close - atr, 5)
-                                price = self.get_book_order_price("bid")
-                                amount = round(self.deposit/price, 1)
-                                self.LONG_LOCK2 = 1
-                                Message(f"[{self.symbol} OPEN-LONG 2] SL:{self.n2_long_price2}")
-                                self.orderFO(self.symbol, "BUY", "LONG", amount)
+                                if self.long_open == False:
+
+                                    self.n2_long_price2 = round(close - atr, 5)
+                                    price = self.get_book_order_price("bid")
+                                    amount = round(self.deposit/price, 1)
+                                    self.LONG_LOCK2 = 1
+                                    Message(f"[{self.symbol} OPEN-LONG 2] SL:{self.n2_long_price2}")
+                                    self.orderFO(self.symbol, "BUY", "LONG", amount)
 
                         # SHORT TERRITORY 2
                         if open_short2 != close_short2:
@@ -308,15 +311,17 @@ class Binance:
                             if self.SHORT_LOCK2 == -1:
                                 if open_short2:
                                     self.SHORT_LOCK2 = 1
+                                    Message(f"Change SHORT_LOCK2: {self.SHORT_LOCK2}")
 
                             if self.SHORT_LOCK2 == 1:
                                 if close_short2:
                                     self.SHORT_LOCK2 = 0
+                                    Message(f"Change SHORT_LOCK2: {self.SHORT_LOCK2}")
 
                             # CLOSE SHORT 2
                             if self.symbol in self.short_dict:
-                                
-                                if self.SHORT_LOCK2 and close_short2:
+
+                                if close_short2:
 
                                     qty = float(self.short_dict[self.symbol]['positionAmt'])
                                     price = self.short_dict[self.symbol]['entryPrice']
@@ -327,19 +332,20 @@ class Binance:
                                     if pnl > 0:
                                         self.SHORT_LOCK2 == -1
                                         Message("[SHORT 2] 이익 실현, 다음 매수 신호만 무시")
-                                
-                                if open_short2:
-                                    self.SHORT_LOCK2 = 1
-                            
-                            # OPEN SHORT 2
-                            elif self.symbol not in self.short_dict and self.SHORT_LOCK2 == 0 and open_short2:
 
-                                self.n2_short_price2 = round(close + atr, 5)
-                                price = self.get_book_order_price("ask")
-                                amount = round(self.deposit/price, 1)
-                                self.SHORT_LOCK2 = 1
-                                Message(f"[{self.symbol} OPEN-SHORT 2] SL:{self.n2_short_price2}")
-                                self.orderFO(self.symbol, "SELL", "SHORT", amount)
+                            # OPEN SHORT 2
+                            elif self.symbol not in self.short_dict and self.SHORT_LOCK != 0 and self.SHORT_LOCK2 == 0 and open_short2:
+                                
+                                if self.short_open == False:
+                                    self.n2_short_price2 = round(close + atr, 5)
+                                    price = self.get_book_order_price("ask")
+                                    amount = round(self.deposit/price, 1)
+                                    self.SHORT_LOCK2 = 1
+                                    Message(f"[{self.symbol} OPEN-SHORT 2] SL:{self.n2_short_price2}")
+                                    self.orderFO(self.symbol, "SELL", "SHORT", amount)
+
+                    self.long_open = False
+                    self.short_open = False
 
                 self.close_list.insert(0, close)
 
