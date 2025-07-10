@@ -19,8 +19,8 @@ class Binance:
         self.LONG_LOCK = 0 # 0: False, 1: True
         self.SHORT_LOCK = 0 # 0: False, 1: True
 
-        self.LONG_LOCK2 = 0 # 0: False, 1: True
-        self.SHORT_LOCK2 = 1 # 0: False, 1: True
+        self.LONG_LOCK2 = 1 # 0: False, 1: True
+        self.SHORT_LOCK2 = 0 # 0: False, 1: True
 
         self.long_open = False
         self.short_open = False
