@@ -12,8 +12,8 @@ class Binance:
         TIME = self.client.KLINE_INTERVAL_5MINUTE
 
         # 0: False, 1: True
-        self.LONG_LOCK = 0 
-        self.SHORT_LOCK = 0
+        self.LONG_LOCK = 0
+        self.SHORT_LOCK = 1
         self.LONG_LOCK2 = 0
         self.SHORT_LOCK2 = 0
 
@@ -48,7 +48,7 @@ class Binance:
         self.get_candle_chart(TIME)
         self.start_websocket(TIME)
 
-    def get_balance(self, _default:bool = False, _leverage:int = 1, _position_rate:int = 10):
+    def get_balance(self, _default:bool = False, _leverage:int = 10, _position_rate:int = 50):
 
         if _default:
             self.client.futures_change_leverage(symbol = self.symbol, leverage = _leverage)
@@ -103,7 +103,7 @@ class Binance:
 
         if self.ORDER_LOCK == False:
 
-            if (_positionSide == "LONG" and order_long_Id == 0) or (_positionSide == "SHORT" and order_short_Id == 0):
+            if (_positionSide == "LONG" and self.order_long_Id == 0) or (_positionSide == "SHORT" and self.order_short_Id == 0):
 
                 order = self.client.futures_create_order(
                     symbol = self.symbol,
@@ -115,9 +115,9 @@ class Binance:
 
             if order != None:
                 if _positionSide == "LONG":
-                    order_long_Id = order['orderId']
+                    self.order_long_Id = order['orderId']
                 else:
-                    order_short_Id = order['orderId']
+                    self.order_short_Id = order['orderId']
 
     def get_candle_chart(self, _time):
 
@@ -210,7 +210,7 @@ class Binance:
 
                             # OPEN LONG 1
                             elif self.symbol not in self.long_dict and self.LONG_LOCK == 0 and open_long:
-                                long_open = True
+                                self.long_open = True
                                 self.n2_long_price = round(close - atr, 5)
                                 price = self.get_book_order_price("bid")
                                 amount = round(self.deposit/price, 1)
@@ -249,7 +249,7 @@ class Binance:
                             # OPEN SHORT 1
                             elif self.symbol not in self.short_dict and self.SHORT_LOCK == 0 and open_short:
 
-                                short_open = True
+                                self.short_open = True
                                 self.n2_short_price = round(close + atr, 5)
                                 price = self.get_book_order_price("ask")
                                 amount = round(self.deposit/price, 1)
@@ -299,7 +299,7 @@ class Binance:
                             # OPEN LONG 2
                             elif self.symbol not in self.long_dict and self.LONG_LOCK != 0 and self.LONG_LOCK2 == 0 and open_long2:
 
-                                if long_open == False:
+                                if self.long_open == False:
 
                                     self.n2_long_price2 = round(close - atr, 5)
                                     price = self.get_book_order_price("bid")
@@ -339,7 +339,7 @@ class Binance:
                             # OPEN SHORT 2
                             elif self.symbol not in self.short_dict and self.SHORT_LOCK != 0 and self.SHORT_LOCK2 == 0 and open_short2:
                                 
-                                if short_open == False:
+                                if self.short_open == False:
                                     self.n2_short_price2 = round(close + atr, 5)
                                     price = self.get_book_order_price("ask")
                                     amount = round(self.deposit/price, 1)
@@ -347,8 +347,8 @@ class Binance:
                                     Message(f"[OPEN-SHORT 2] SL:{self.n2_short_price2} {self.SHORT_LOCK2}")
                                     self.orderFO("SELL", "SHORT", amount)
 
-                    long_open = False
-                    short_open = False
+                    self.long_open = False
+                    self.short_open = False
 
                 self.close_list.insert(0, close)
 
@@ -412,11 +412,11 @@ class Binance:
                     i = o['i']
                     if o['X'] == 'FILLED':
 
-                        if i == order_long_Id:
-                            order_long_Id = 0
+                        if i == self.order_long_Id:
+                            self.order_long_Id = 0
 
-                        if i == order_short_Id:
-                            order_short_Id = 0
+                        if i == self.order_short_Id:
+                            self.order_short_Id = 0
 
                 if e == 'ACCOUNT_UPDATE':
                     self.get_balance()
