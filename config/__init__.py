@@ -8,5 +8,3 @@ from . indicators import *
 from . strategies import *
 
 from . typing import *
-
-from . settings import *
