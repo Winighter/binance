@@ -8,10 +8,11 @@ KLINE_INTERVAL = "5m" # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1
 DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1375453664885473341/l9ASZS3clm_RTXMvq7kT2D3_wMC3J3uMeUwbQB0w54uBqu8zIxpYLvYCdoL2iibfvi6n'
 
 ### ENABLES ###
-TEST_MODE = True
+TEST_MODE = False
 HEDGE_MODE = True
 
 # EMA CROSS
 SHORT_PERIOD = 10
 MIDDLE_PERIOD = 20
 LONG_PERIOD = 65
+
