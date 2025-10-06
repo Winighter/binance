@@ -1,0 +1,15 @@
+FUTURES_TRADING_ASSET = 'USDT'
+SYMBOL = "XRPUSDT"
+LEVERAGE = 1
+MAX_POSITION_RATIO = 20 # % 전체자산 기준 최대 포지션 보유 가능 비율
+MAX_RISK_RATIO = 1 # 0.25% ~ 1% 전체자산 기준 최대 손실 허용 비율
+KLINE_INTERVAL = "15m" # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
+
+# DISCORD
+DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1375453664885473341/l9ASZS3clm_RTXMvq7kT2D3_wMC3J3uMeUwbQB0w54uBqu8zIxpYLvYCdoL2iibfvi6n'
+
+### ENABLES ###
+TEST_MODE = False
+HEDGE_MODE = True
+
+TREND_PERIOD = 100
