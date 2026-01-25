@@ -428,7 +428,7 @@ class TradingEngine:
                                         else_id = str(self.positions.short_take_profit_order_id)
 
                                 if else_side and else_id:
-                                    self.order_manager.initialize_bot_state(ps=else_side, else_orderid=else_id, showLog = True)
+                                    self.order_manager.update_exit_algo_order(ps=else_side, else_orderid=else_id, showLog = True)
 
                 case UserDataEventType.ACCOUNT_UPDATE.value:
 
@@ -764,4 +764,5 @@ class TradingEngine:
                     sl_price=sl_price,
                     tp_price=tp_price
                 )
+
                 logger.info(f"[SYNC] SHORT position restored successfully. SL_RAW: {default_stop_loss}, sl_price: {sl_price}, Entry: {entry_price}, tp_price: {tp_price}")
