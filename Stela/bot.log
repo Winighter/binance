@@ -1,6 +1,0 @@
-[2026-01-28 08:40:51] SETUP_MANAGER - INFO: Successfully fetched total 1000 candles (Current included).
-[2026-01-28 08:40:51] BINANCE_CLIENT - INFO: Margin type is already set to the requested mode.
-[2026-01-28 08:40:51] WEBSOCKET_MANAGER - INFO: Starting multiplex streams: ['xrpusdt@kline_1m']
-[2026-01-28 08:41:00] TRADING_ENGINE - INFO: [SHORT SIGNAL] Amount: 55.80 | DFSL: 1.9209, Stop Loss: 1.9205, Entry: 1.9204, Take Profit: 1.9172
-[2026-01-28 08:41:00] ORDER_MANAGER - INFO: New short stop-loss order placed with updated quantity and price. 1.9205 3000000438018795
-[2026-01-28 08:41:00] ORDER_MANAGER - INFO: New short take-profit order placed with updated quantity and price. 1.9172 3000000438018809
