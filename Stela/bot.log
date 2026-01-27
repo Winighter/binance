@@ -1,0 +1,4 @@
+[2026-01-27 14:37:43] SETUP_MANAGER - INFO: Successfully fetched total 1000 candles (Current included).
+[2026-01-27 14:37:43] BINANCE_CLIENT - INFO: Margin type is already set to the requested mode.
+[2026-01-27 14:37:44] WEBSOCKET_MANAGER - INFO: Starting multiplex streams: ['xrpusdt@kline_1m']
+[2026-01-27 14:38:59] TRADING_ENGINE - INFO: [LONG SIGNAL] Amount: 56.40 | DFSL: 1.9008, Stop Loss: 1.9011, Entry: 1.9016, Take Profit: 1.9050
